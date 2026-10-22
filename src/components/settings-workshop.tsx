@@ -116,11 +116,26 @@ export function WorkshopSettingsPage() {
   })
 
   function handleSaveSheetsUrl() {
+    const trimmed = sheetsUrl.trim()
+    if (!trimmed) {
+      window.alert('Por favor, informe a URL do App da Web do Google Sheets.')
+      return
+    }
+
+    if (trimmed.includes('docs.google.com/spreadsheets')) {
+      window.alert(
+        'Atenção! Você colou o link da planilha do navegador (docs.google.com/spreadsheets...).\n\n' +
+        'O sistema precisa da "URL do Aplicativo da Web" gerada no Apps Script (que começa com https://script.google.com/macros/s/... e termina em /exec).\n\n' +
+        'Clique em "Ver Instruções do Google Sheets" para ver o passo a passo com o código pronto.'
+      )
+      return
+    }
+
     saveSheetsConfig({
-      webAppUrl: sheetsUrl.trim(),
+      webAppUrl: trimmed,
       autoSync: true
     })
-    window.alert('URL do Google Sheets configurada! Vamos testar a sincronização agora.')
+    window.alert('URL do Google Sheets configurada! Testando sincronização...')
     handleManualSync()
   }
 
