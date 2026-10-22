@@ -503,6 +503,29 @@ function triggerDebouncedSheetsSync() {
   }, 3500)
 }
 
+// Auto-sincronização transparente entre celular e PC
+if (typeof window !== 'undefined') {
+  // Ao desbloquear o celular ou alternar de volta para o aplicativo
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      const config = getSheetsConfig()
+      if (config.webAppUrl?.trim() && config.autoSync && !currentSyncState.isSyncing) {
+        syncWithGoogleSheets(true).catch(() => {})
+      }
+    }
+  })
+
+  // Sincronização periódica em segundo plano a cada 60 segundos com a tela ligada
+  setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      const config = getSheetsConfig()
+      if (config.webAppUrl?.trim() && config.autoSync && !currentSyncState.isSyncing) {
+        syncWithGoogleSheets(true).catch(() => {})
+      }
+    }
+  }, 60_000)
+}
+
 const TABLES_TO_SYNC = [
   'settings',
   'clients',
