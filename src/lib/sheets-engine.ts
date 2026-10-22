@@ -43,14 +43,37 @@ function updateSyncState(patch: Partial<SyncState>) {
   syncListeners.forEach(fn => fn(currentSyncState))
 }
 
+export const DEFAULT_SHEETS_URL =
+  ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_SHEETS_URL as string | undefined)?.trim() ||
+  'https://script.google.com/macros/s/AKfycbwF97bn6BP9TT37t2t9Y0rLd-jhD2F5uIkCuV8txWLTzMJ5BZPMFpqXxmJwrcdPexUm/exec'
+
 export function getSheetsConfig(): SheetsConfig {
   try {
+    // Permite conexao rapida via URL (ex: ?sheets_url=... ou ?connect_sheets=...)
+    if (typeof window !== 'undefined') {
+      const search =
+        window.location.search ||
+        (window.location.hash.includes('?') ? window.location.hash.substring(window.location.hash.indexOf('?')) : '')
+      const params = new URLSearchParams(search)
+      const paramUrl = params.get('sheets_url') || params.get('connect_sheets')
+      if (paramUrl && paramUrl.startsWith('http')) {
+        const cfg: SheetsConfig = { webAppUrl: paramUrl.trim(), autoSync: true }
+        localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(cfg))
+        return cfg
+      }
+    }
+
     const raw = localStorage.getItem(STORAGE_KEY_CONFIG)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed.webAppUrl === 'string' && parsed.webAppUrl.trim()) {
+        return parsed
+      }
+    }
   } catch {
     // fallback
   }
-  return { webAppUrl: '', autoSync: true }
+  return { webAppUrl: DEFAULT_SHEETS_URL, autoSync: true }
 }
 
 export function saveSheetsConfig(config: SheetsConfig) {
@@ -398,12 +421,18 @@ export async function getWebDatabase(): Promise<SqlDatabase> {
       const isConfigured = Boolean(config.webAppUrl?.trim())
       updateSyncState({
         isConfigured,
-        statusText: isConfigured ? 'Pronto (Google Sheets configurado)' : 'Modo local pronto (salvando no dispositivo)'
+        statusText: isConfigured ? 'Pronto (Google Sheets conectado)' : 'Modo local pronto (salvando no dispositivo)'
       })
 
-      // Sincroniza em background se configurado
+      // Sincroniza em background ao inicializar (baixa novidades da nuvem)
       if (isConfigured && config.autoSync) {
-        setTimeout(() => syncWithGoogleSheets().catch(console.error), 1200)
+        setTimeout(async () => {
+          try {
+            await syncWithGoogleSheets(true)
+          } catch (err) {
+            console.warn('Sync inicial em segundo plano:', err)
+          }
+        }, 1000)
       }
 
       return db
@@ -516,6 +545,9 @@ export async function syncWithGoogleSheets(forcePull = false): Promise<{ success
       if (json.status === 'ok' && json.data) {
         importAllTablesToSql(db, json.data)
         saveDatabaseToStorage(db)
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('oficina_data_synced'))
+        }
         const now = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
         updateSyncState({
           isSyncing: false,
@@ -586,9 +618,9 @@ export async function syncWithGoogleSheets(forcePull = false): Promise<{ success
 function importAllTablesToSql(db: SqlDatabase, data: Record<string, Record<string, unknown>[]>) {
   for (const [table, rows] of Object.entries(data)) {
     if (!TABLES_TO_SYNC.includes(table) || !Array.isArray(rows)) continue
+    if (rows.length === 0) continue // Preserva dados locais se a tabela remota estiver em branco
     try {
       db.run(`DELETE FROM ${table}`)
-      if (rows.length === 0) continue
       const sample = rows[0]
       const keys = Object.keys(sample)
       const placeholders = keys.map(() => '?').join(',')

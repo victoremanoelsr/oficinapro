@@ -97,6 +97,12 @@ export function App() {
     return subscribeSyncState(setSyncState)
   }, [])
 
+  useEffect(() => {
+    const onSynced = () => cache.invalidateQueries()
+    window.addEventListener('oficina_data_synced', onSynced)
+    return () => window.removeEventListener('oficina_data_synced', onSynced)
+  }, [cache])
+
   const active = pages.find((page) => page.to === location.pathname)?.label ?? 'Oficina Pro'
 
   async function handleHeaderSync() {
