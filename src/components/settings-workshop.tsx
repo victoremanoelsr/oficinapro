@@ -10,10 +10,7 @@ import {
   ExternalLink,
   HelpCircle,
   ImagePlus,
-  Moon,
-  Palette,
   RefreshCw,
-  Sun,
   Trash2,
   Upload,
   Database
@@ -48,14 +45,6 @@ const defaults: Settings = {
   pix_key: '',
   city_default: 'São Miguel da Baixa Grande - PI'
 }
-
-const themes = [
-  { name: 'Oficina Pro (Vermelho)', primary_color: '#b91c1c', sidebar_background_color: '#18181b', background_color: '#f4f4f5', card_color: '#ffffff', theme_mode: 'Claro' as const },
-  { name: 'Azul Profissional', primary_color: '#1d4ed8', sidebar_background_color: '#172554', background_color: '#eff6ff', card_color: '#ffffff', theme_mode: 'Claro' as const },
-  { name: 'Verde Oficina', primary_color: '#15803d', sidebar_background_color: '#052e16', background_color: '#f0fdf4', card_color: '#ffffff', theme_mode: 'Claro' as const },
-  { name: 'Grafite Moderno', primary_color: '#f97316', sidebar_background_color: '#18181b', background_color: '#18181b', card_color: '#27272a', theme_mode: 'Escuro' as const },
-  { name: 'Roxo Premium', primary_color: '#7e22ce', sidebar_background_color: '#2e1065', background_color: '#faf5ff', card_color: '#ffffff', theme_mode: 'Claro' as const }
-]
 
 export function WorkshopSettingsPage() {
   const cache = useQueryClient()
@@ -193,21 +182,12 @@ export function WorkshopSettingsPage() {
     setTimeout(() => setCopiedScript(false), 3000)
   }
 
-  function applyTheme(theme: (typeof themes)[number]) {
-    form.setValue('primary_color', theme.primary_color)
-    form.setValue('sidebar_color', theme.primary_color)
-    form.setValue('sidebar_background_color', theme.sidebar_background_color)
-    form.setValue('background_color', theme.background_color)
-    form.setValue('card_color', theme.card_color)
-    form.setValue('theme_mode', theme.theme_mode)
-  }
-
   return (
     <>
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Configurações do Sistema</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Dados da oficina, integração com Google Sheets em nuvem, cores e backup.
+          Dados da oficina, integração com Google Sheets em nuvem e backup.
         </p>
       </div>
 
@@ -256,39 +236,6 @@ export function WorkshopSettingsPage() {
                       </Button>
                     )}
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Bloco Temas & Cores */}
-            <div className="border-t border-zinc-200 pt-5">
-              <h2 className="flex items-center gap-2 text-lg font-bold text-zinc-900">
-                <Palette size={19} /> Temas Prontos
-              </h2>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                {themes.map(t => (
-                  <button
-                    type="button"
-                    key={t.name}
-                    onClick={() => applyTheme(t)}
-                    className="rounded-xl border border-zinc-200 p-3 text-left transition hover:border-zinc-400"
-                  >
-                    <span className="mb-2 flex gap-1">
-                      {[t.primary_color, t.sidebar_background_color, t.background_color, t.card_color].map((c, i) => (
-                        <i key={i} className="h-4 w-4 rounded-full border border-black/10" style={{ backgroundColor: c }} />
-                      ))}
-                    </span>
-                    <strong className="text-xs text-zinc-800">{t.name}</strong>
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center gap-4">
-                <div className="max-w-xs">
-                  <Select label="Modo Visual" {...form.register('theme_mode')}>
-                    <option value="Claro">Modo Claro</option>
-                    <option value="Escuro">Modo Escuro</option>
-                  </Select>
                 </div>
               </div>
             </div>
