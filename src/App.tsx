@@ -267,209 +267,306 @@ function RouterPage() {
 
 function DashboardPage() {
   const cache = useQueryClient()
+  const navigate = useNavigate()
   const [receivingPart, setReceivingPart] = useState<{ id: number; part_id: number | null; description: string; requested_quantity: number; service_order_id: number } | null>(null)
-  const { data, isLoading } = useQuery({ queryKey: ['dashboard'], queryFn: async () => {
-    const [orders, lowStock, stats] = await Promise.all([
-      query<Order>(`SELECT o.*, c.name client_name, v.plate, trim(v.brand || ' ' || v.model) vehicle FROM service_orders o JOIN clients c ON c.id=o.client_id JOIN vehicles v ON v.id=o.vehicle_id WHERE o.status <> 'Finalizada' ORDER BY o.entered_at DESC LIMIT 8`),
-      query<Part>('SELECT * FROM parts WHERE archived_at IS NULL AND quantity <= minimum_stock ORDER BY quantity ASC LIMIT 8'),
-      query<{ opened: number; maintenance: number; waiting: number; completed: number; daily: number; monthly: number }>(`SELECT
-        SUM(CASE WHEN status <> 'Finalizada' THEN 1 ELSE 0 END) opened,
-        SUM(CASE WHEN status='Em manutenção' THEN 1 ELSE 0 END) maintenance,
-        SUM(CASE WHEN status='Aguardando peças' THEN 1 ELSE 0 END) waiting,
-        SUM(CASE WHEN date(finalized_at)=date('now','localtime') THEN 1 ELSE 0 END) completed,
-        COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE type='Recebimento' AND status='Pago' AND date(paid_at)=date('now','localtime')),0) daily,
-        COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE type='Recebimento' AND status='Pago' AND strftime('%Y-%m',paid_at)=strftime('%Y-%m','now','localtime')),0) monthly
-        FROM service_orders`)
-    ])
-    return { orders, lowStock, stats: stats[0] ?? { opened: 0, maintenance: 0, waiting: 0, completed: 0, daily: 0, monthly: 0 } }
-  }})
-  const { data: pendingParts = [] } = useQuery({ queryKey: ['part-requests'], queryFn: () => query<{ id: number; part_id: number | null; description: string; requested_quantity: number; priority: string; number: string; client_name: string; service_order_id: number }>(`SELECT r.id,r.part_id,r.description,r.requested_quantity,r.priority,r.service_order_id,o.number,c.name AS client_name FROM part_requests r JOIN service_orders o ON o.id=r.service_order_id JOIN clients c ON c.id=o.client_id WHERE r.status='Pendente' ORDER BY CASE r.priority WHEN 'Urgente' THEN 1 WHEN 'Alta' THEN 2 ELSE 3 END, r.created_at ASC`) })
-  const receivePart = useMutation({ mutationFn: async (request: { id: number; part_id: number | null; description: string; requested_quantity: number; service_order_id: number }) => { const quantity = Number(window.prompt(`Quantidade recebida de ${request.description}:`, String(request.requested_quantity)) || 0); if (!quantity || quantity < 0) return; let partId = request.part_id; if (partId) await execute('UPDATE parts SET quantity=quantity+? WHERE id=?', [quantity, partId]); else { const code = `PED-${Date.now()}`; const result = await execute('INSERT INTO parts (code,name,brand,quantity,purchase_price,sale_price,minimum_stock) VALUES (?,?,?,?,?,?,?)', [code, request.description, '', quantity, 0, 0, 0]); partId = Number(result.lastInsertId) } await execute("UPDATE part_requests SET status='Recebida',part_id=? WHERE id=?", [partId, request.id]); await execute("UPDATE service_orders SET status='Em manutenção' WHERE id=? AND status='Aguardando peças'", [request.service_order_id]) }, onSuccess: () => { for (const key of ['part-requests', 'parts', 'orders', 'dashboard', 'order-stock']) cache.invalidateQueries({ queryKey: [key] }) } })
-  const { data: readyToContact = [] } = useQuery({ queryKey: ['ready-to-contact'], queryFn: () => query<{ id: number; number: string; client_name: string; phone: string; vehicle: string; plate: string }>(`SELECT o.id,o.number,c.name AS client_name,c.phone,trim(v.brand || ' ' || v.model) vehicle,v.plate FROM service_orders o JOIN clients c ON c.id=o.client_id JOIN vehicles v ON v.id=o.vehicle_id WHERE o.status='Finalizada' AND NOT EXISTS (SELECT 1 FROM financial_transactions t WHERE t.service_order_id=o.id) ORDER BY o.finalized_at ASC`) })
-  const { data: duePayments = [] } = useQuery({ queryKey: ['due-account-payments'], queryFn: () => query<{ id: number; amount: number; due_date: string; client_name: string; phone: string; vehicle: string; plate: string; number: string }>(`SELECT t.id,t.amount,t.due_date,c.name AS client_name,c.phone,trim(v.brand || ' ' || v.model) vehicle,v.plate,o.number FROM financial_transactions t JOIN clients c ON c.id=t.client_id LEFT JOIN vehicles v ON v.id=t.vehicle_id LEFT JOIN service_orders o ON o.id=t.service_order_id WHERE t.type='Recebimento' AND t.status='Pendente' AND t.payment_method='Anotado na conta' AND t.due_date IS NOT NULL AND date(t.due_date)<=date('now','localtime') ORDER BY t.due_date ASC`) })
-  const { data: billSummary = [] } = useQuery({ queryKey: ['open-bills-month'], queryFn: () => query<{ count: number; total: number }>(`SELECT COUNT(*) count,COALESCE(SUM(amount),0) total FROM bills WHERE status='Pendente' AND strftime('%Y-%m',due_date)=strftime('%Y-%m','now','localtime')`) })
-  const statCards = [
-    ['OS abertas', data?.stats.opened ?? 0, ClipboardList, 'text-sky-700 bg-sky-50'], ['Em manutenção', data?.stats.maintenance ?? 0, Wrench, 'text-amber-700 bg-amber-50'], ['Aguardando peças', data?.stats.waiting ?? 0, Boxes, 'text-orange-700 bg-orange-50'], ['Finalizadas hoje', data?.stats.completed ?? 0, CheckCircle2, 'text-emerald-700 bg-emerald-50'], ['Agendamentos hoje', 0, CalendarClock, 'text-violet-700 bg-violet-50'], ['Faturamento do dia', money(data?.stats.daily), CircleDollarSign, 'text-red-700 bg-red-50'], ['Faturamento do mês', money(data?.stats.monthly), Wallet, 'text-rose-700 bg-rose-50'], ['Boletos abertos no mês', `${billSummary[0]?.count ?? 0} · ${money(billSummary[0]?.total ?? 0)}`, ReceiptText, 'text-orange-700 bg-orange-50']
-  ] as const
+  const [newOrderOpen, setNewOrderOpen] = useState(false)
+  const [newCheckinOpen, setNewCheckinOpen] = useState(false)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['dashboard-simplified'],
+    queryFn: async () => {
+      const [orders, lowStock, stats, fiado] = await Promise.all([
+        query<Order>(
+          `SELECT o.*, c.name client_name, c.nickname, v.plate, trim(v.brand || ' ' || v.model) vehicle 
+           FROM service_orders o 
+           JOIN clients c ON c.id=o.client_id 
+           JOIN vehicles v ON v.id=o.vehicle_id 
+           WHERE o.status <> 'Finalizada' 
+           ORDER BY o.entered_at DESC LIMIT 6`
+        ),
+        query<Part>(
+          'SELECT * FROM parts WHERE archived_at IS NULL AND quantity <= minimum_stock ORDER BY quantity ASC LIMIT 5'
+        ),
+        query<{ opened: number; maintenance: number; waiting: number; completed: number; daily: number }>(
+          `SELECT
+            SUM(CASE WHEN status <> 'Finalizada' THEN 1 ELSE 0 END) opened,
+            SUM(CASE WHEN status='Em manutenção' THEN 1 ELSE 0 END) maintenance,
+            SUM(CASE WHEN status='Aguardando peças' THEN 1 ELSE 0 END) waiting,
+            SUM(CASE WHEN date(finalized_at)=date('now','localtime') THEN 1 ELSE 0 END) completed,
+            COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE type='Recebimento' AND status='Pago' AND date(paid_at)=date('now','localtime')),0) daily
+           FROM service_orders`
+        ),
+        query<{ total: number; count: number }>(
+          `SELECT 
+            COALESCE(SUM(balance), 0) total,
+            COUNT(CASE WHEN balance > 0 THEN 1 END) count
+           FROM (
+             SELECT SUM(CASE WHEN type='Debito' THEN amount ELSE -amount END) balance
+             FROM customer_ledger
+             GROUP BY client_id
+           )`
+        )
+      ])
+
+      return {
+        orders,
+        lowStock,
+        stats: stats[0] ?? { opened: 0, maintenance: 0, waiting: 0, completed: 0, daily: 0 },
+        fiado: fiado[0] ?? { total: 0, count: 0 }
+      }
+    }
+  })
+
+  // Serviços prontos para avisar o cliente no WhatsApp
+  const { data: readyToDeliver = [] } = useQuery({
+    queryKey: ['ready-to-deliver'],
+    queryFn: () =>
+      query<{ id: number; number: string; client_name: string; nickname?: string; phone: string; vehicle: string; plate: string }>(
+        `SELECT o.id, o.number, c.name AS client_name, c.nickname, c.phone, trim(v.brand || ' ' || v.model) vehicle, v.plate 
+         FROM service_orders o 
+         JOIN clients c ON c.id=o.client_id 
+         JOIN vehicles v ON v.id=o.vehicle_id 
+         WHERE o.status='Serviço finalizado'
+         ORDER BY o.entered_at DESC LIMIT 4`
+      )
+  })
+
+  function avisarWhatsApp(order: { client_name: string; nickname?: string; phone: string; vehicle: string; plate: string; number: string }) {
+    if (!order.phone) {
+      window.alert('Cliente sem telefone cadastrado.')
+      return
+    }
+    const nome = order.nickname || order.client_name
+    openWhatsApp(
+      order.phone,
+      `Olá ${nome}! Seu veículo ${order.vehicle} (Placa: ${order.plate}) está com o serviço concluído e pronto para retirada na oficina! Qualquer dúvida, estamos à disposição.`
+    )
+  }
+
+  // 4 Cards Essenciais e Objetivos
+  const essentialCards = [
+    {
+      label: 'Veículos no Pátio',
+      value: data?.stats.opened ?? 0,
+      subtext: `${data?.stats.maintenance ?? 0} em manutenção · ${data?.stats.waiting ?? 0} aguardando peças`,
+      icon: Wrench,
+      color: 'text-sky-700 bg-sky-100/80 border-sky-200'
+    },
+    {
+      label: 'Prontos Hoje',
+      value: data?.stats.completed ?? 0,
+      subtext: 'Serviços finalizados hoje',
+      icon: CheckCircle2,
+      color: 'text-emerald-700 bg-emerald-100/80 border-emerald-200'
+    },
+    {
+      label: 'Caixa de Hoje',
+      value: money(data?.stats.daily),
+      subtext: 'Entradas recebidas hoje',
+      icon: CircleDollarSign,
+      color: 'text-red-700 bg-red-100/80 border-red-200'
+    },
+    {
+      label: 'Fiado a Receber',
+      value: money(data?.fiado.total),
+      subtext: `${data?.fiado.count ?? 0} cliente(s) com débito`,
+      icon: BadgeDollarSign,
+      color: 'text-amber-700 bg-amber-100/80 border-amber-200'
+    }
+  ]
+
   return (
     <>
-      <PageHeader title="Bom trabalho!" subtitle="Veja o que está acontecendo na oficina hoje." />
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
-        {statCards.map(([label, value, Icon, color]) => (
-          <Panel key={label} className="p-3 sm:p-4">
-            <div className="flex items-start justify-between gap-1">
-              <div>
-                <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-zinc-500 truncate">{label}</p>
-                <strong className="mt-1 sm:mt-2 block text-lg sm:text-2xl text-zinc-950 font-bold">{isLoading ? '—' : value}</strong>
-              </div>
-              <span className={`shrink-0 rounded-lg p-2 sm:p-2.5 ${color}`}>
-                <Icon size={18} className="sm:w-5 sm:h-5" />
-              </span>
-            </div>
-          </Panel>
-        ))}
+      {/* Cabeçalho Limpo com Ações Rápidas */}
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-zinc-950">Painel Principal</h1>
+          <p className="mt-0.5 text-xs sm:text-sm text-zinc-500">Resumo direto do dia na oficina.</p>
+        </div>
+
+        {/* Botões de Ação Imediata no Balcão */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={() => setNewCheckinOpen(true)} variant="secondary" className="border-zinc-300">
+            <Camera size={16} className="text-zinc-700" />
+            <span>Vistoria / Entrada</span>
+          </Button>
+
+          <Button onClick={() => setNewOrderOpen(true)} className="bg-red-600 hover:bg-red-700 text-white">
+            <Plus size={16} />
+            <span>Nova OS</span>
+          </Button>
+        </div>
       </div>
 
-      <div className="mt-4 sm:mt-6 grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
+      {/* 4 Cards Essenciais e Grandes */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {essentialCards.map(card => {
+          const Icon = card.icon
+          return (
+            <Panel key={card.label} className="p-3.5 sm:p-4.5 border border-zinc-200 hover:border-zinc-300 transition">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-zinc-500 truncate">
+                  {card.label}
+                </span>
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${card.color}`}>
+                  <Icon size={18} />
+                </span>
+              </div>
+              <strong className="mt-2 block text-xl sm:text-2xl md:text-3xl font-black text-zinc-950">
+                {isLoading ? '—' : card.value}
+              </strong>
+              <p className="mt-1 text-[11px] text-zinc-500 truncate">{card.subtext}</p>
+            </Panel>
+          )
+        })}
+      </div>
+
+      {/* Grid Principal: 2 Colunas Limpas */}
+      <div className="mt-5 sm:mt-6 grid grid-cols-1 gap-5 lg:grid-cols-3">
+        {/* Tabela de OSs em Andamento (Ocupa 2 colunas) */}
         <Panel className="lg:col-span-2">
-          <div className="flex items-center justify-between border-b border-zinc-200 px-4 sm:px-5 py-3 sm:py-4">
-            <h2 className="text-sm sm:text-base font-bold text-zinc-900">Ordens de serviço em andamento</h2>
+          <div className="flex items-center justify-between border-b border-zinc-200 px-4 sm:px-5 py-3.5">
+            <div>
+              <h2 className="text-sm sm:text-base font-bold text-zinc-900">Veículos no Pátio / Em Manutenção</h2>
+              <p className="text-xs text-zinc-500">Últimas ordens de serviço ativas</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/ordens')}
+              className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline"
+            >
+              Ver todas as OSs →
+            </button>
           </div>
+
           {data?.orders.length ? (
             <TableShell>
               <thead>
                 <tr>
-                  <Head>Número</Head>
+                  <Head>OS</Head>
                   <Head>Cliente</Head>
-                  <Head>Veículo</Head>
+                  <Head>Veículo / Placa</Head>
                   <Head>Status</Head>
                   <Head>Entrada</Head>
                 </tr>
               </thead>
-              <tbody>
-                {data.orders.map((order) => (
-                  <tr key={order.id}>
-                    <Cell className="font-semibold">{order.number}</Cell>
-                    <Cell>{order.client_name}</Cell>
-                    <Cell>{order.vehicle} · {order.plate}</Cell>
-                    <Cell><StatusBadge status={order.status} /></Cell>
-                    <Cell>{dateOnly(order.entered_at)}</Cell>
+              <tbody className="divide-y divide-zinc-100">
+                {data.orders.map(order => (
+                  <tr key={order.id} className="hover:bg-zinc-50/60 transition">
+                    <Cell className="font-bold text-zinc-950">{order.number}</Cell>
+                    <Cell>
+                      <div className="space-y-0.5">
+                        {order.nickname ? (
+                          <span className="inline-block rounded bg-amber-500 px-1.5 py-0.2 text-[10px] font-black uppercase text-white shadow-2xs mr-1.5">
+                            {order.nickname}
+                          </span>
+                        ) : null}
+                        <span className="font-medium text-zinc-800 text-xs sm:text-sm">{order.client_name}</span>
+                      </div>
+                    </Cell>
+                    <Cell className="whitespace-nowrap">
+                      <span className="font-semibold text-zinc-900">{order.vehicle}</span>
+                      <span className="ml-1.5 text-xs text-zinc-500">({order.plate})</span>
+                    </Cell>
+                    <Cell>
+                      <StatusBadge status={order.status} />
+                    </Cell>
+                    <Cell className="text-xs text-zinc-500 whitespace-nowrap">{dateOnly(order.entered_at)}</Cell>
                   </tr>
                 ))}
               </tbody>
             </TableShell>
           ) : (
-            <Empty>Nenhuma ordem em andamento.</Empty>
+            <Empty>Nenhum veículo em andamento no pátio no momento.</Empty>
           )}
         </Panel>
 
-        <Panel>
-          <div className="border-b border-zinc-200 px-4 sm:px-5 py-3 sm:py-4">
-            <h2 className="flex items-center gap-2 text-sm sm:text-base font-bold text-zinc-900">
-              <Boxes size={18} className="text-red-700" />
-              Estoque baixo
-            </h2>
-          </div>
-          <div className="divide-y divide-zinc-100 max-h-[380px] overflow-y-auto">
-            {data?.lowStock.length ? (
-              data.lowStock.map((part) => (
-                <div key={part.id} className="flex items-center justify-between px-4 sm:px-5 py-2.5 sm:py-3">
-                  <div>
-                    <p className="text-xs sm:text-sm font-semibold text-zinc-800">{part.name}</p>
-                    <p className="text-[11px] sm:text-xs text-zinc-500">{part.code} · mínimo {part.minimum_stock}</p>
+        {/* Coluna Lateral: Alertas do Dia (Veículos Prontos & Estoque) */}
+        <div className="space-y-5">
+          {/* Prontos para Avisar Cliente */}
+          <Panel>
+            <div className="border-b border-zinc-200 px-4 py-3 bg-emerald-50/50">
+              <h3 className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-emerald-950">
+                <CheckCircle2 size={16} className="text-emerald-700" />
+                Prontos para Retirada ({readyToDeliver.length})
+              </h3>
+            </div>
+
+            {readyToDeliver.length ? (
+              <div className="divide-y divide-zinc-100 max-h-[260px] overflow-y-auto touch-scroll">
+                {readyToDeliver.map(item => (
+                  <div key={item.id} className="flex items-center justify-between gap-2 p-3 hover:bg-zinc-50 transition">
+                    <div>
+                      <p className="text-xs sm:text-sm font-bold text-zinc-900">
+                        {item.nickname ? `"${item.nickname}"` : item.client_name}
+                      </p>
+                      <p className="text-xs text-zinc-600">{item.vehicle} · {item.plate}</p>
+                    </div>
+                    {item.phone && (
+                      <Button
+                        variant="secondary"
+                        className="px-2.5 py-1 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50 shrink-0"
+                        onClick={() => avisarWhatsApp(item)}
+                        title="Avisar cliente pelo WhatsApp"
+                      >
+                        <MessageCircle size={14} />
+                        <span>Avisar</span>
+                      </Button>
+                    )}
                   </div>
-                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">{part.quantity} un.</span>
-                </div>
-              ))
+                ))}
+              </div>
             ) : (
-              <Empty>Seu estoque está em dia.</Empty>
+              <div className="p-4 text-center text-xs text-zinc-400">
+                Nenhum veículo aguardando retirada.
+              </div>
             )}
-          </div>
-        </Panel>
-      </div>
+          </Panel>
 
-      <div className="mt-4 sm:mt-6 grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Panel>
-          <div className="border-b border-zinc-200 px-4 sm:px-5 py-3 sm:py-4">
-            <h2 className="flex items-center gap-2 text-sm sm:text-base font-bold text-zinc-900">
-              <CheckCircle2 size={18} className="text-violet-700" />
-              Entrar em contato
-            </h2>
-          </div>
-          {readyToContact.length ? (
-            <div className="divide-y divide-zinc-100 max-h-[360px] overflow-y-auto">
-              {readyToContact.map((order) => (
-                <div key={order.id} className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-2.5 sm:py-3">
-                  <div>
-                    <p className="text-xs sm:text-sm font-semibold text-zinc-800">{order.client_name}</p>
-                    <p className="text-xs text-zinc-600">{order.phone || 'Sem telefone'}</p>
-                    <p className="text-[11px] text-zinc-500">OS {order.number} · {order.vehicle}</p>
-                  </div>
-                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-800">Pronto</span>
-                </div>
-              ))}
+          {/* Alerta de Peças em Falta */}
+          <Panel>
+            <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
+              <h3 className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-zinc-900">
+                <Boxes size={16} className="text-red-600" />
+                Estoque Baixo
+              </h3>
+              <button
+                type="button"
+                onClick={() => navigate('/estoque')}
+                className="text-xs font-semibold text-zinc-500 hover:text-zinc-800"
+              >
+                Ver estoque →
+              </button>
             </div>
-          ) : (
-            <Empty>Nenhum serviço finalizado aguardando contato.</Empty>
-          )}
-        </Panel>
 
-        <Panel>
-          <div className="border-b border-zinc-200 px-4 sm:px-5 py-3 sm:py-4">
-            <h2 className="flex items-center gap-2 text-sm sm:text-base font-bold text-zinc-900">
-              <Wallet size={18} className="text-amber-700" />
-              Cobranças de hoje
-            </h2>
-          </div>
-          {duePayments.length ? (
-            <div className="divide-y divide-zinc-100 max-h-[360px] overflow-y-auto">
-              {duePayments.map((payment) => (
-                <div key={payment.id} className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-2.5 sm:py-3">
-                  <div>
-                    <p className="text-xs sm:text-sm font-semibold text-zinc-800">{payment.client_name}</p>
-                    <p className="text-xs text-zinc-600">{payment.phone || 'Sem telefone'} · {money(payment.amount)}</p>
-                    <p className="text-[11px] text-zinc-500">Vence em {dateOnly(payment.due_date)} · OS {payment.number || 'avulso'}</p>
-                  </div>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">Fiado</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Empty>Nenhuma cobrança anotada vence hoje.</Empty>
-          )}
-        </Panel>
-
-        <Panel className="md:col-span-2 lg:col-span-1">
-          <div className="border-b border-zinc-200 px-4 sm:px-5 py-3 sm:py-4">
-            <h2 className="flex items-center gap-2 text-sm sm:text-base font-bold text-zinc-900">
-              <PackagePlus size={18} className="text-red-700" />
-              Peças para pedir
-            </h2>
-          </div>
-          {pendingParts.length ? (
-            <div className="divide-y divide-zinc-100 max-h-[360px] overflow-y-auto">
-              {pendingParts.map((part) => (
-                <div key={part.id} className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-2.5 sm:py-3">
-                  <div>
-                    <p className="text-xs sm:text-sm font-semibold text-zinc-800">
-                      {part.description} <span className="text-[11px] text-zinc-500">· {part.requested_quantity} un.</span>
-                    </p>
-                    <p className="text-[11px] text-zinc-500">OS {part.number} · {part.client_name}</p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                      part.priority === 'Urgente' ? 'bg-red-100 text-red-700' : part.priority === 'Alta' ? 'bg-amber-100 text-amber-800' : 'bg-zinc-100 text-zinc-700'
-                    }`}>
-                      {part.priority}
+            {data?.lowStock.length ? (
+              <div className="divide-y divide-zinc-100 max-h-[240px] overflow-y-auto touch-scroll">
+                {data.lowStock.map(part => (
+                  <div key={part.id} className="flex items-center justify-between p-3 hover:bg-zinc-50 transition">
+                    <div>
+                      <p className="text-xs font-bold text-zinc-900">{part.name}</p>
+                      <p className="text-[11px] text-zinc-500">Mínimo: {part.minimum_stock} un.</p>
+                    </div>
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-extrabold text-red-700">
+                      {part.quantity} un.
                     </span>
-                    <Button className="px-2 py-1 text-xs" variant="secondary" onClick={() => setReceivingPart(part)}>
-                      <CheckCircle2 size={14} /> Chegou
-                    </Button>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Empty>Nenhuma peça aguardando pedido.</Empty>
-          )}
-        </Panel>
+                ))}
+              </div>
+            ) : (
+              <div className="p-4 text-center text-xs text-emerald-700 bg-emerald-50/50">
+                ✓ Todo o estoque está em dia.
+              </div>
+            )}
+          </Panel>
+        </div>
       </div>
 
-      {receivingPart && <ReceivePartDialog request={receivingPart} onClose={() => setReceivingPart(null)} />}
+      {/* Modais de Ação Rápida */}
+      {newOrderOpen && <OrderForm onClose={() => setNewOrderOpen(false)} />}
+      {newCheckinOpen && <CheckinDialog onClose={() => setNewCheckinOpen(false)} />}
     </>
   )
-}
-
-const internalPartCode = () => `SEM-COD-${Date.now()}-${Math.floor(Math.random() * 1000)}`
-
-function ReceivePartDialog({ request, onClose }: { request: { id: number; part_id: number | null; description: string; requested_quantity: number; service_order_id: number }; onClose: () => void }) {
-  const cache = useQueryClient()
-  const { data: existingParts = [] } = useQuery({ queryKey: ['requested-part', request.part_id], enabled: Boolean(request.part_id), queryFn: () => query<Part>('SELECT * FROM parts WHERE id=?', [request.part_id]) })
-  const existing = existingParts[0]
-  const form = useForm({ defaultValues: { code: existing?.code ?? `PED-${Date.now()}`, name: request.description, quantity: String(request.requested_quantity), minimum_stock: String(existing?.minimum_stock ?? 0), purchase_price: String(existing?.purchase_price ?? 0), sale_price: String(existing?.sale_price ?? 0), brand: existing?.brand ?? '' } })
-  useEffect(() => { if (existing) form.reset({ code: existing.code, name: existing.name, quantity: String(request.requested_quantity), minimum_stock: String(existing.minimum_stock), purchase_price: String(existing.purchase_price), sale_price: String(existing.sale_price), brand: existing.brand }) }, [existing, form, request.requested_quantity])
-  const save = useMutation({ mutationFn: async (value: { code: string; name: string; quantity: string; minimum_stock: string; purchase_price: string; sale_price: string; brand: string }) => { const quantity = Number(value.quantity) || 0; const code = value.code.trim() || internalPartCode(); if (quantity <= 0) throw new Error('Informe uma quantidade maior que zero.'); let partId = request.part_id; if (partId) await execute('UPDATE parts SET code=?,name=?,brand=?,quantity=quantity+?,purchase_price=?,sale_price=?,minimum_stock=? WHERE id=?', [code, value.name, value.brand, quantity, Number(value.purchase_price) || 0, Number(value.sale_price) || 0, Number(value.minimum_stock) || 0, partId]); else { const result = await execute('INSERT INTO parts (code,name,brand,quantity,purchase_price,sale_price,minimum_stock) VALUES (?,?,?,?,?,?,?)', [code, value.name, value.brand, quantity, Number(value.purchase_price) || 0, Number(value.sale_price) || 0, Number(value.minimum_stock) || 0]); partId = Number(result.lastInsertId) } await execute('INSERT INTO stock_movements (part_id,movement_type,item_name,quantity,unit_cost,unit_price,total_cost,notes) VALUES (?,?,?,?,?,?,?,?)', [partId, 'Entrada', value.name, quantity, Number(value.purchase_price) || 0, Number(value.sale_price) || 0, quantity * (Number(value.purchase_price) || 0), 'Peça recebida de pedido']); await execute("UPDATE part_requests SET status='Recebida',part_id=? WHERE id=?", [partId, request.id]); await execute("UPDATE service_orders SET status='Em manutenção' WHERE id=? AND status='Aguardando peças'", [request.service_order_id]) }, onSuccess: () => { for (const key of ['part-requests', 'parts', 'orders', 'dashboard', 'order-stock']) cache.invalidateQueries({ queryKey: [key] }); onClose() } })
-  return <Modal title="Registrar peça recebida" onClose={onClose}><form className="space-y-4" onSubmit={form.handleSubmit(value => save.mutate(value))}><p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Nome e quantidade vieram do pedido. Complete os valores para manter essa peça organizada no estoque.</p><div className="grid grid-cols-2 gap-3"><Input label="Código (opcional)" {...form.register('code')}/><Input required label="Quantidade recebida" type="number" min="0.01" step="0.01" {...form.register('quantity')}/></div><Input required label="Nome da peça" {...form.register('name')}/><Input label="Marca" {...form.register('brand')}/><div className="grid grid-cols-1 gap-3 sm:grid-cols-3"><Input label="Estoque mínimo" type="number" min="0" step="0.01" {...form.register('minimum_stock')}/><Input label="Valor de compra" type="number" min="0" step="0.01" {...form.register('purchase_price')}/><Input label="Valor de venda" type="number" min="0" step="0.01" {...form.register('sale_price')}/></div><div className="flex justify-end gap-3"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button disabled={save.isPending} type="submit">{save.isPending ? 'Salvando...' : 'Registrar chegada'}</Button></div></form></Modal>
 }
 
 const clientSchema = z.object({
@@ -1506,6 +1603,8 @@ function OrderDetail({ order, onClose, onFinalize }: { order: Order; onClose: ()
     </Modal>
   )
 }
+
+const internalPartCode = () => `SEM-COD-${Date.now()}-${Math.floor(Math.random() * 1000)}`
 
 const partSchema = z.object({ code: z.string(), name: z.string().min(2, 'Informe o nome.'), brand: z.string(), quantity: z.coerce.number().min(0), purchase_price: z.coerce.number().min(0), sale_price: z.coerce.number().min(0), minimum_stock: z.coerce.number().min(0) })
 type PartFormData = z.infer<typeof partSchema>

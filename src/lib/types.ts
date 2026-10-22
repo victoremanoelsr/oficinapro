@@ -37,6 +37,7 @@ export type Order = {
   client_id: number
   vehicle_id: number
   client_name: string
+  nickname?: string
   plate: string
   vehicle: string
   mileage: number
