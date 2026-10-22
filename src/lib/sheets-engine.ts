@@ -488,7 +488,8 @@ const TABLES_TO_SYNC = [
   'budget_parts',
   'budget_services',
   'part_requests',
-  'stock_movements'
+  'stock_movements',
+  'customer_ledger'
 ]
 
 export async function syncWithGoogleSheets(forcePull = false): Promise<{ success: boolean; message: string }> {
