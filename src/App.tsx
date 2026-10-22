@@ -180,8 +180,8 @@ export function App() {
         <div onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 bg-black/60 lg:hidden backdrop-blur-sm" />
       )}
 
-      {/* Conteúdo Principal Adaptado para Tablet Portrait & Landscape */}
-      <main className="min-h-screen pb-24 sm:pb-24 lg:pb-8 lg:ml-64 w-full transition-all tablet-landscape-content">
+      {/* Conteúdo Principal Adaptado para Desktop (Full Width) e Tablet Portrait & Landscape */}
+      <main className="min-h-screen pb-24 sm:pb-24 lg:pb-8 lg:pl-64 w-full transition-all tablet-landscape-content flex flex-col">
         {/* Header Superior */}
         <header className="no-print sticky top-0 z-30 flex h-14 sm:h-16 lg:h-14 landscape:h-12 items-center justify-between border-b border-zinc-200 bg-white/95 px-3 sm:px-6 md:px-8 backdrop-blur-md tablet-landscape-compact-header">
           <div className="flex items-center gap-2 sm:gap-3.5">
@@ -215,7 +215,7 @@ export function App() {
           </div>
         </header>
 
-        <div className="p-3.5 sm:p-5 md:p-6 lg:p-8 tablet-portrait-container max-w-7xl mx-auto w-full">
+        <div className="w-full px-3.5 sm:px-6 md:px-8 py-4 sm:py-6">
           <RouterPage />
         </div>
       </main>
@@ -398,8 +398,8 @@ function DashboardPage() {
         </div>
       </div>
 
-      {/* 4 Cards Essenciais e Grandes */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* 4 Cards Essenciais e Grandes com layout responsivo para Mobile, Tablet e Desktop */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 w-full">
         {essentialCards.map(card => {
           const Icon = card.icon
           return (
