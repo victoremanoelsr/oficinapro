@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id        Int       @id @default(autoincrement())
+  name      String
+  phone     String    @default("")
+  city      String    @default("")
+  document  String    @default("")
+  notes     String    @default("")
+  createdAt DateTime  @default(now())
+  vehicles  Vehicle[]
+  orders    ServiceOrder[]
+}
+
+model Vehicle {
+  id       Int      @id @default(autoincrement())
+  clientId Int
+  plate    String
+  model    String
+  brand    String   @default("")
+  year     String   @default("")
+  color    String   @default("")
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  orders   ServiceOrder[]
+  @@unique([clientId, plate])
+}
+
+model Part {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique
+  name         String
+  brand        String   @default("")
+  quantity     Float    @default(0)
+  purchasePrice Float   @default(0)
+  salePrice    Float    @default(0)
+  minimumStock Float    @default(0)
+  orderParts   ServiceOrderPart[]
+}
+
+model ServiceOrder {
+  id           Int      @id @default(autoincrement())
+  number       String   @unique
+  clientId     Int
+  vehicleId    Int
+  complaint    String   @default("")
+  diagnosis    String   @default("")
+  serviceDone  String   @default("")
+  laborValue   Float    @default(0)
+  partsValue   Float    @default(0)
+  total        Float    @default(0)
+  status       String   @default("Aberta")
+  enteredAt    DateTime @default(now())
+  finalizedAt  DateTime?
+  client       Client   @relation(fields: [clientId], references: [id])
+  vehicle      Vehicle  @relation(fields: [vehicleId], references: [id])
+  parts        ServiceOrderPart[]
+}
+
+model ServiceOrderPart {
+  id             Int          @id @default(autoincrement())
+  serviceOrderId Int
+  partId         Int
+  quantity       Float
+  unitPrice      Float
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  part           Part         @relation(fields: [partId], references: [id])
+}

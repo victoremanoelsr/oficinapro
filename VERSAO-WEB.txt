@@ -1,0 +1,9 @@
+VERSAO WEB - OFICINA FACIL
+
+1. Dê dois cliques em ABRIR-VERSAO-WEB.bat.
+2. Aguarde. O navegador abrirá automaticamente o sistema.
+3. Mantenha as duas janelas pretas abertas enquanto estiver usando o sistema.
+4. Para encerrar, feche a janela do navegador e as duas janelas pretas.
+
+O endereço do sistema é: http://localhost:1420
+Os dados ficam apenas neste computador, no banco SQLite local.

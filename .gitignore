@@ -1,0 +1,24 @@
+node_modules/
+dist/
+src-tauri/target/
+.vite/
+*.db
+*.db-journal
+*.log
+
+# Instaladores e binários pesados de compilação
+outputs/
+installer/build/
+installer/portable/runtime/
+*.exe
+*.zip
+*.cab
+*.msi
+
+# Variáveis de ambiente
+.env
+backend/.env
+backend/node_modules/
+backend/dist/
+backend/prisma/*.db
+backend/prisma/*.db-journal
