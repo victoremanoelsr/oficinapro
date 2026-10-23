@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import {
-  ArchiveRestore, BadgeDollarSign, BarChart3, BookOpen, Boxes, CalendarClock, Camera, Car, CheckCircle2, CircleDollarSign, ClipboardCheck,
+  ArchiveRestore, BadgeDollarSign, BarChart3, Bike, BookOpen, Boxes, CalendarClock, Camera, Car, CheckCircle2, CircleDollarSign, ClipboardCheck,
   ClipboardList, Cloud, FileDown, FileText, LayoutDashboard, Menu, MessageCircle, PackagePlus, Pencil, Plus, Printer, ReceiptText, RefreshCw, Search,
   Settings as SettingsIcon, Trash2, Users, Wallet, Wrench, X
 } from 'lucide-react'
@@ -855,11 +855,11 @@ function ClientsPage() {
                         <Button
                           className="px-2.5 py-1.5 text-xs"
                           variant="secondary"
-                          title="Ver veículos"
+                          title="Ver motos"
                           onClick={() => setSelected(client)}
                         >
-                          <Car size={14} />
-                          <span className="hidden sm:inline">Veículos</span>
+                          <Bike size={14} />
+                          <span className="hidden sm:inline">Motos</span>
                         </Button>
 
                         <Button
@@ -926,11 +926,11 @@ function VehiclesModal({ client, onClose }: { client: Client; onClose: () => voi
   }
 
   return (
-    <Modal title={`Veículos — ${client.name} ${client.nickname ? `(${client.nickname})` : ''}`} onClose={onClose} wide>
+    <Modal title={`Motos — ${client.name} ${client.nickname ? `(${client.nickname})` : ''}`} onClose={onClose} wide>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-zinc-500">Motos, carros ou utilitários vinculados a este cliente.</p>
+        <p className="text-sm text-zinc-500">Motos ou veículos vinculados a este cliente.</p>
         <Button onClick={() => setVehicleForm('new')}>
-          <Plus size={17} /> Novo veículo
+          <Plus size={17} /> Nova moto
         </Button>
       </div>
 
@@ -977,7 +977,7 @@ function VehiclesModal({ client, onClose }: { client: Client; onClose: () => voi
           ))}
         </div>
       ) : (
-        <Empty>Este cliente ainda não tem motos ou carros cadastrados.</Empty>
+        <Empty>Este cliente ainda não tem motos cadastradas.</Empty>
       )}
 
       {vehicleForm && (
@@ -1031,32 +1031,31 @@ function VehicleForm({ client, initial, onClose }: { client: Client; initial?: V
   })
 
   return (
-    <Modal title={initial ? 'Editar veículo' : 'Novo veículo'} onClose={onClose}>
+    <Modal title={initial ? 'Editar Moto' : 'Nova Moto'} onClose={onClose}>
       <form onSubmit={form.handleSubmit(value => saveVehicle.mutate(value))} className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Select label="Tipo do veículo *" {...form.register('vehicle_type')}>
             <option value="Moto">Moto (Motocicleta)</option>
-            <option value="Carro">Carro de passeio</option>
-            <option value="Caminhonete">Caminhonete / Picape</option>
-            <option value="Utilitário">Utilitário / Van</option>
+            <option value="Scooter">Scooter / CUB (Biz, Pop, PCX...)</option>
+            <option value="Triciclo">Triciclo / Quadriciclo</option>
             <option value="Outro">Outro</option>
           </Select>
 
           <Input required label="Placa *" placeholder="ABC1D23 ou Mercosul" {...form.register('plate')} />
-          <Input required label="Modelo *" placeholder="Ex.: CG 160 Fan, Bros 160, Gol, Strada" {...form.register('model')} />
+          <Input required label="Modelo da Moto *" placeholder="Ex.: CG 160 Fan, Bros 160, Biz 125, XRE 300, Fazer 250" {...form.register('model')} />
         </div>
 
         <div className="grid grid-cols-3 gap-3">
-          <Input label="Marca / Fabricante" placeholder="Ex.: Honda, Yamaha, Fiat" {...form.register('brand')} />
-          <Input label="Ano de fabricação" inputMode="numeric" placeholder="Ex.: 2022" {...form.register('year')} />
-          <Input label="Cor" placeholder="Ex.: Vermelha, Preta" {...form.register('color')} />
+          <Input label="Marca / Fabricante" placeholder="Ex.: Honda, Yamaha, Suzuki, Shineray" {...form.register('brand')} />
+          <Input label="Ano de fabricação" inputMode="numeric" placeholder="Ex.: 2023" {...form.register('year')} />
+          <Input label="Cor" placeholder="Ex.: Vermelha, Preta, Azul" {...form.register('color')} />
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">Salvar veículo</Button>
+          <Button type="submit">Salvar moto</Button>
         </div>
       </form>
     </Modal>
@@ -1145,7 +1144,7 @@ function OrdersPage() {
     }
     const oficina = branding?.workshop_name || 'Oficina Mecânica'
     const pix = branding?.pix_key ? `\nChave Pix: ${branding.pix_key}` : ''
-    const msg = `Olá ${order.client_name}! Tudo bem?\nAqui é da *${oficina}*.\n\nSeu veículo *${order.vehicle}* (${order.plate}) referente à *OS ${order.number}* já está *PRONTO* para retirada!\n\nValor total: *${money(order.total)}*${pix}\n\nPode vir retirar quando quiser!`
+    const msg = `Olá ${order.client_name}! Tudo bem?\nAqui é da *${oficina}*.\n\nSua moto *${order.vehicle}* (${order.plate}) referente à *OS ${order.number}* já está *PRONTA* para retirada!\n\nValor total: *${money(order.total)}*${pix}\n\nPode vir retirar quando quiser!`
     openWhatsApp(order.phone, msg)
   }
 

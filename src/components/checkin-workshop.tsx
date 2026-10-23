@@ -81,7 +81,7 @@ export function CheckinDialog({ initial, onClose, onOpenOrder }: CheckinDialogPr
   const [clientPhone, setClientPhone] = useState(initial?.client_phone || '')
   const [vehiclePlate, setVehiclePlate] = useState(initial?.vehicle_plate || '')
   const [vehicleModel, setVehicleModel] = useState(initial?.vehicle_model || '')
-  const [vehicleType, setVehicleType] = useState<string>(initial?.vehicle_type || 'Carro')
+  const [vehicleType, setVehicleType] = useState<string>(initial?.vehicle_type || 'Moto')
   const [unitType, setUnitType] = useState<'km' | 'horas'>(initial?.unit_type || 'km')
   const [mileage, setMileage] = useState(String(initial?.mileage || '0'))
   const [fuel, setFuel] = useState(initial?.fuel || '1/2')
@@ -289,21 +289,23 @@ export function CheckinDialog({ initial, onClose, onOpenOrder }: CheckinDialogPr
     }
 
     const mensagem =
-      `*COMPROVANTE DE ENTRADA / VISTORIA*\n\n` +
-      `🚗 Veículo: *${vehicleModel || 'Veículo'}* (Placa: *${vehiclePlate.toUpperCase()}*)\n` +
+      `*COMPROVANTE DE ENTRADA / VISTORIA — MOTO*\n\n` +
+      `🏍️ Moto: *${vehicleModel || 'Motocicleta'}* (Placa: *${vehiclePlate.toUpperCase()}*)\n` +
       `👤 Cliente: *${clientName}*\n` +
       `⏱️ ${unitType === 'horas' ? 'Horímetro' : 'Quilometragem'}: *${mileage} ${unitType}*\n` +
-      `⛽ Combustível: *${fuel}*\n` +
+      `⛽ Nível do Tanque: *${fuel}*\n` +
       `🔍 Itens conferidos: ${[
-        spareTire ? 'Estepe' : null,
-        jack ? 'Macaco' : null,
-        triangle ? 'Triângulo' : null,
-        documents ? 'Doc' : null
+        spareTire ? 'Capacete' : null,
+        jack ? 'Retrovisores' : null,
+        spareKey ? 'Chave Ignição' : null,
+        documents ? 'Doc' : null,
+        triangle ? 'Ferramentas' : null,
+        sound ? 'Baú/Bagageiro' : null
       ]
         .filter(Boolean)
         .join(', ') || 'Nenhum'}\n` +
       (notes ? `📝 Obs/Avarias de entrada: ${notes}\n` : '') +
-      `\nVeículo recebido na oficina. Cuidaremos com todo zelo!`
+      `\nMotocicleta recebida na oficina. Cuidaremos com todo zelo!`
 
     openWhatsApp(clientPhone, mensagem)
   }
@@ -429,8 +431,8 @@ export function CheckinDialog({ initial, onClose, onOpenOrder }: CheckinDialogPr
           />
 
           <Input
-            label="Modelo do Veículo *"
-            placeholder="Ex: Hilux 2.8, Gol G5, CG 160..."
+            label="Modelo da Moto *"
+            placeholder="Ex: CG 160 Titan/Fan, Bros 160, Biz 125, XRE 300, Fazer 250, Factor 150..."
             value={vehicleModel}
             onChange={e => setVehicleModel(e.target.value)}
           />
@@ -440,11 +442,9 @@ export function CheckinDialog({ initial, onClose, onOpenOrder }: CheckinDialogPr
             value={vehicleType}
             onChange={e => setVehicleType(e.target.value)}
           >
-            <option value="Carro">Carro de Passeio</option>
-            <option value="Moto">Moto</option>
-            <option value="Caminhonete">Caminhonete / Picape</option>
-            <option value="Utilitário">Utilitário / Van</option>
-            <option value="Trator">Trator / Máquina Agrícola</option>
+            <option value="Moto">Moto (Motocicleta)</option>
+            <option value="Scooter">Scooter / CUB (Biz, Pop, PCX...)</option>
+            <option value="Triciclo">Triciclo / Quadriciclo</option>
             <option value="Outro">Outro</option>
           </Select>
         </div>
@@ -510,19 +510,19 @@ export function CheckinDialog({ initial, onClose, onOpenOrder }: CheckinDialogPr
           </div>
         </div>
 
-        {/* Checklist Rápido de Itens Presentes */}
+        {/* Checklist Rápido de Itens Presentes na Moto */}
         <div>
           <label className="text-xs sm:text-sm font-bold text-zinc-800 block mb-2">
-            Acessórios e Itens Conferidos no Veículo:
+            Acessórios e Itens Conferidos na Moto:
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
             {[
-              { label: 'Estepe', state: spareTire, set: setSpareTire },
-              { label: 'Macaco', state: jack, set: setJack },
-              { label: 'Triângulo', state: triangle, set: setTriangle },
-              { label: 'Chave Roda', state: spareKey, set: setSpareKey },
-              { label: 'Som / Painel', state: sound, set: setSound },
-              { label: 'Documento', state: documents, set: setDocuments }
+              { label: 'Capacete', state: spareTire, set: setSpareTire },
+              { label: 'Retrovisores', state: jack, set: setJack },
+              { label: 'Chave Ignição', state: spareKey, set: setSpareKey },
+              { label: 'Documento', state: documents, set: setDocuments },
+              { label: 'Ferramentas', state: triangle, set: setTriangle },
+              { label: 'Baú / Bagageiro', state: sound, set: setSound }
             ].map(item => (
               <button
                 key={item.label}
@@ -551,7 +551,7 @@ export function CheckinDialog({ initial, onClose, onOpenOrder }: CheckinDialogPr
             <div>
               <h4 className="font-bold text-sm text-zinc-900 flex items-center gap-1.5">
                 <Camera size={18} className="text-red-600" />
-                Fotos da Vistoria / Riscos do Veículo ({photos.length}/6)
+                Fotos da Vistoria / Riscos na Carenagem e Tanque ({photos.length}/6)
               </h4>
               <p className="text-xs text-zinc-500">
                 Fotos comprimidas automaticamente para carregar rápido e não encher a memória.
@@ -590,8 +590,7 @@ export function CheckinDialog({ initial, onClose, onOpenOrder }: CheckinDialogPr
           {/* Grade de Miniaturas */}
           {photos.length === 0 ? (
             <div className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50 p-6 text-center text-xs text-zinc-400">
-              Nenhuma foto anexada. Use a câmera do tablet para registrar riscos, trincos ou avarias antes de iniciar o
-              serviço.
+              Nenhuma foto anexada. Use a câmera do celular/tablet para registrar riscos no tanque, carenagens, amassados ou avarias antes de iniciar o serviço.
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
